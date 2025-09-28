@@ -808,7 +808,6 @@
         const serialNumberInput = document.getElementById('serial-number');
         const totalItemsSpan = document.getElementById('total-items');
         const recentItemsSpan = document.getElementById('recent-items');
-        const itemCountSpan = document.getElementById('item-count');
         const emptyState = document.getElementById('empty-state');
         const tableContainer = document.getElementById('table-container');
         const tableBody = document.getElementById('table-body');
@@ -841,7 +840,6 @@
 
         function updateStats() {
             totalItemsSpan.textContent = scannedItems.length;
-            itemCountSpan.textContent = scannedItems.length;
             
             // Count recent items (last minute)
             const oneMinuteAgo = Date.now() - 60000;
