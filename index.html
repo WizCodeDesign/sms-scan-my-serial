@@ -14,7 +14,8 @@
     <meta property="og:description" content="Professional barcode and serial number scanner for inventory tracking with camera access and CSV export">
     <meta property="og:type" content="website">
     
-    <!-- Self-contained barcode scanner - no external dependencies -->
+    <!-- Barcode scanner with QuaggaJS for real barcode detection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     
     <style>
         /* Design System - Professional Blue/Gray Theme */
@@ -732,9 +733,11 @@
     <script>
         // Application State
         let scannedItems = [];
+        let nextId = 1; // Start from 1 and increment
         let cameraActive = false;
         let currentStream = null;
         let scanningInterval = null;
+        let isScanning = false;
 
         // DOM Elements
         const videoElement = document.getElementById('video');
@@ -757,7 +760,7 @@
 
         // Utility Functions
         function generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            return nextId++;
         }
 
         function showToast(title, message, type = 'success') {
@@ -827,7 +830,7 @@
             const action = fromScan ? 'Scanned' : 'Added';
             showToast(
                 `Item ${action}`,
-                `${productName} has been ${action.toLowerCase()} successfully`,
+                `${productName} (ID: ${newItem.id}) has been ${action.toLowerCase()} successfully`,
                 'success'
             );
         }
@@ -856,47 +859,85 @@
             });
         }
 
-        // Camera Functions
+        // Camera Functions with Barcode Scanning
         async function startCamera() {
             try {
-                // Check if mediaDevices is supported
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    throw new Error('Camera API not supported in this browser');
+                // Check if QuaggaJS is available
+                if (typeof Quagga === 'undefined') {
+                    throw new Error('Barcode scanner library not loaded. Please refresh the page.');
                 }
 
-                // Request camera permission with mobile optimizations
-                const constraints = { 
-                    video: { 
-                        facingMode: 'environment', // Prefer back camera on mobile
-                        width: { ideal: 1280, max: 1920 },
-                        height: { ideal: 720, max: 1080 }
-                    } 
-                };
-
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                // Set up video element
-                videoElement.srcObject = currentStream;
-                videoElement.style.display = 'block';
+                // Hide inactive camera state and show scanning overlay
                 cameraInactive.style.display = 'none';
                 scanningOverlay.style.display = 'flex';
                 
-                // Wait for video to be ready
-                await new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        videoElement.play().then(resolve).catch(resolve);
-                    };
+                // Configure QuaggaJS for barcode scanning
+                const config = {
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector('#scanner-container'),
+                        constraints: {
+                            width: { min: 640 },
+                            height: { min: 480 },
+                            aspectRatio: { min: 1, max: 100 },
+                            facingMode: "environment" // Use back camera on mobile
+                        },
+                        singleChannel: false
+                    },
+                    locator: {
+                        patchSize: "medium",
+                        halfSample: true
+                    },
+                    numOfWorkers: 2,
+                    frequency: 10,
+                    decoder: {
+                        readers: [
+                            "code_128_reader",
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_39_reader",
+                            "code_39_vin_reader",
+                            "codabar_reader",
+                            "upc_reader",
+                            "upc_e_reader",
+                            "i2of5_reader"
+                        ]
+                    },
+                    locate: true
+                };
+
+                // Initialize QuaggaJS
+                Quagga.init(config, function(err) {
+                    if (err) {
+                        console.error('QuaggaJS initialization error:', err);
+                        throw new Error('Failed to initialize barcode scanner');
+                    }
+                    
+                    Quagga.start();
+                    isScanning = true;
+                    
+                    // Listen for successful barcode detection
+                    Quagga.onDetected(function(result) {
+                        if (isScanning && result && result.codeResult) {
+                            const code = result.codeResult.code;
+                            addItem(`Product ${nextId}`, code, true);
+                            
+                            // Pause scanning briefly to prevent duplicate scans
+                            isScanning = false;
+                            setTimeout(() => {
+                                isScanning = true;
+                            }, 2000);
+                        }
+                    });
                 });
-                
-                // Start basic scanning (simplified - just captures video for now)
-                startBasicScanning();
                 
                 cameraActive = true;
                 updateCameraButton();
                 
                 showToast(
-                    "Camera Started",
-                    "Camera is now active. Use Manual Entry for serial numbers, or point camera at text to capture.",
+                    "Scanner Started",
+                    "Barcode scanner is now active. Point camera at a barcode to scan.",
                     'success'
                 );
                 
@@ -908,11 +949,14 @@
                 scanningOverlay.style.display = 'none';
                 
                 let errorMessage = "Camera access is required to use the scanner";
-                let errorTitle = "Camera Access Required";
+                let errorTitle = "Scanner Error";
                 
-                if (error.message.includes('not supported')) {
-                    errorMessage = "Camera is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.";
-                    errorTitle = "Camera Not Supported";
+                if (error.message.includes('not loaded') || error.message.includes('refresh')) {
+                    errorMessage = "Barcode scanner library failed to load. Please check your internet connection and refresh the page.";
+                    errorTitle = "Library Loading Error";
+                } else if (error.message.includes('initialize')) {
+                    errorMessage = "Failed to initialize barcode scanner. Please try again or use Manual Entry.";
+                    errorTitle = "Scanner Initialization Error";
                 } else if (error.name === 'NotAllowedError') {
                     errorMessage = "Please allow camera access in your browser settings to use the scanner.";
                     errorTitle = "Camera Permission Denied";
@@ -928,43 +972,48 @@
             }
         }
 
-        // Basic scanning function (simplified)
-        function startBasicScanning() {
-            // For now, we'll just show the camera feed
-            // In a real implementation, you'd add barcode detection here
-            console.log('Camera feed started - manual entry recommended for serial numbers');
-        }
-
-        // Test camera availability
+        // Test library and camera availability
         function testLibrary() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const cameraSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            const quaggaSupported = typeof Quagga !== 'undefined';
+            
+            if (cameraSupported && quaggaSupported) {
                 showToast(
-                    "Camera API Available",
-                    "Camera access is supported. You can start the camera to scan.",
+                    "Scanner Ready",
+                    "Barcode scanner library loaded and camera access supported. Ready to scan!",
                     'success'
+                );
+            } else if (cameraSupported && !quaggaSupported) {
+                showToast(
+                    "Library Loading",
+                    "Camera supported but barcode library still loading. Please wait and try again.",
+                    'warning'
+                );
+            } else if (!cameraSupported) {
+                showToast(
+                    "Camera Not Supported",
+                    "Camera API not available. Please use Manual Entry or try a different browser.",
+                    'error'
                 );
             } else {
                 showToast(
-                    "Camera Not Supported",
-                    "Camera API is not available in this browser. Please use Manual Entry.",
+                    "Loading Error",
+                    "Both camera and barcode library failed to load. Please refresh the page.",
                     'error'
                 );
             }
         }
 
         async function stopCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
+            if (typeof Quagga !== 'undefined' && Quagga) {
+                try {
+                    Quagga.stop();
+                } catch (error) {
+                    console.log('Error stopping QuaggaJS:', error);
+                }
             }
             
-            if (scanningInterval) {
-                clearInterval(scanningInterval);
-                scanningInterval = null;
-            }
-            
-            videoElement.style.display = 'none';
-            videoElement.srcObject = null;
+            isScanning = false;
             cameraInactive.style.display = 'flex';
             scanningOverlay.style.display = 'none';
             
@@ -1043,11 +1092,12 @@
             if (scannedItems.length === 0) return;
             
             scannedItems = [];
+            nextId = 1; // Reset ID counter
             updateTable();
             
             showToast(
                 "Data Cleared",
-                "All scanned items have been removed",
+                "All scanned items have been removed. ID counter reset to 1.",
                 'warning'
             );
         }
