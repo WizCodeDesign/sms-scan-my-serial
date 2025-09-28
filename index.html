@@ -14,7 +14,8 @@
     <meta property="og:description" content="Professional barcode and serial number scanner for inventory tracking with camera access and CSV export">
     <meta property="og:type" content="website">
     
-    <!-- Simple camera scanner - no external dependencies -->
+    <!-- Barcode scanning with ZXing library -->
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
     
     <style>
         /* Design System - Professional Blue/Gray Theme */
@@ -890,12 +891,21 @@
                     };
                 });
                 
+                // Start barcode scanning if ZXing is available
+                if (typeof ZXing !== 'undefined') {
+                    startBarcodeScanning();
+                }
+                
                 cameraActive = true;
                 updateCameraButton();
                 
+                const message = typeof ZXing !== 'undefined' 
+                    ? "Camera is now active. Point at a barcode to scan automatically."
+                    : "Camera is now active. Use Manual Entry for serial numbers.";
+                
                 showToast(
                     "Camera Started",
-                    "Camera is now active. Use Manual Entry for serial numbers.",
+                    message,
                     'success'
                 );
                 
@@ -927,19 +937,67 @@
             }
         }
 
+        // Barcode scanning function
+        function startBarcodeScanning() {
+            if (typeof ZXing === 'undefined') {
+                console.log('ZXing library not available');
+                return;
+            }
 
-        // Test camera availability
+            try {
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                // Start scanning from the video element
+                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
+                    if (result) {
+                        const scannedCode = result.getText();
+                        console.log('Barcode detected:', scannedCode);
+                        addItem(`Product ${nextId}`, scannedCode, true);
+                        
+                        // Pause scanning briefly to prevent duplicate scans
+                        setTimeout(() => {
+                            // Resume scanning after 2 seconds
+                        }, 2000);
+                    }
+                    // Don't log errors for normal "no barcode found" cases
+                    if (error && !error.message.includes('No MultiFormat Readers')) {
+                        console.log('Scanning error:', error);
+                    }
+                });
+                
+                console.log('Barcode scanning started');
+            } catch (error) {
+                console.error('Failed to start barcode scanning:', error);
+            }
+        }
+
+        // Test camera and barcode scanning availability
         function testLibrary() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const cameraSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            const barcodeSupported = typeof ZXing !== 'undefined';
+            
+            if (cameraSupported && barcodeSupported) {
                 showToast(
-                    "Camera API Available",
-                    "Camera access is supported. You can start the camera.",
+                    "Scanner Ready",
+                    "Camera and barcode scanning are both available. Ready to scan!",
                     'success'
+                );
+            } else if (cameraSupported && !barcodeSupported) {
+                showToast(
+                    "Camera Only",
+                    "Camera works but barcode library is loading. You can still use Manual Entry.",
+                    'warning'
+                );
+            } else if (!cameraSupported) {
+                showToast(
+                    "Camera Not Supported",
+                    "Camera API not available. Please use Manual Entry or try a different browser.",
+                    'error'
                 );
             } else {
                 showToast(
-                    "Camera Not Supported",
-                    "Camera API is not available in this browser. Please use Manual Entry.",
+                    "Loading Error",
+                    "Both camera and barcode library failed to load. Please refresh the page.",
                     'error'
                 );
             }
