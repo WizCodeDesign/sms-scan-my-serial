@@ -6,6 +6,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" type="image/svg+xml" href="scan.svg">
+    <link rel="shortcut icon" href="scan.svg">
     <title>SMS Scan My Serial - Professional Barcode Scanner</title>
     <meta name="description" content="Professional barcode and serial number scanner for inventory tracking with camera access and CSV export">
     <meta name="author" content="SMS Scan My Serial">
@@ -486,35 +488,91 @@
 
         /* Mobile Optimizations */
         @media (max-width: 768px) {
+            body {
+                overflow-x: hidden; /* Prevent horizontal scrolling */
+            }
+            
             .container {
                 padding: 0 0.75rem;
+                max-width: 100vw; /* Ensure container doesn't exceed viewport */
             }
             
             .header-content {
                 padding: 0.75rem 0;
+                flex-wrap: wrap;
+            }
+            
+            .header-title h1 {
+                font-size: 1.1rem;
+                word-break: break-word;
+            }
+            
+            .header-subtitle {
+                font-size: 0.8rem;
             }
             
             .main {
                 padding: 1rem 0;
             }
             
+            .grid {
+                grid-template-columns: 1fr; /* Single column on mobile */
+                gap: 1rem;
+            }
+            
             .btn {
                 min-height: 44px; /* iOS touch target minimum */
                 font-size: 1rem;
+                width: 100%;
+                box-sizing: border-box;
             }
             
             .scanner-container {
                 aspect-ratio: 4/3; /* Better for mobile cameras */
+                width: 100%;
+                max-width: 100%;
             }
             
             .tabs-trigger {
                 padding: 1rem 0.75rem;
                 font-size: 1rem;
+                min-height: 44px;
             }
             
             .input {
                 min-height: 44px;
                 font-size: 1rem;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .table {
+                min-width: 100%;
+                font-size: 0.875rem;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.5rem 0.25rem;
+                white-space: nowrap;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+            }
+            
+            .card-content {
+                padding: 1rem;
             }
         }
 
@@ -533,9 +591,7 @@
             <div class="header-content">
                 <div class="header-left">
                     <div class="logo">
-                        <svg class="icon-lg" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M3 4h18v2H3V4zm0 14h18v2H3v-2zm0-7h18v2H3v-2z"/>
-                        </svg>
+                        <img src="scan.svg" alt="Scan" class="icon-lg" style="width: 1.5rem; height: 1.5rem;">
                     </div>
                     <div class="header-title">
                         <h1>SMS Scan My Serial</h1>
@@ -604,12 +660,6 @@
                                             </svg>
                                             Start Camera
                                         </button>
-                                        <button id="test-library" class="btn btn-outline" style="width: 100%; margin-top: 0.5rem;">
-                                            <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            Test Library
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -664,7 +714,7 @@
                                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M20 6H10v2h10v10H4V4h6V2H4c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/>
                                     </svg>
-                                    Scanned Items (<span id="item-count">0</span>)
+                                    Scanned Items <span id="item-count">(0)</span>
                                 </div>
                                 <div style="display: flex; gap: 0.5rem;">
                                     <button id="export-csv" class="btn btn-outline btn-small">
@@ -743,7 +793,6 @@
         const videoElement = document.getElementById('video');
         const canvasElement = document.getElementById('canvas');
         const cameraToggleBtn = document.getElementById('camera-toggle');
-        const testLibraryBtn = document.getElementById('test-library');
         const cameraInactive = document.getElementById('camera-inactive');
         const scanningOverlay = document.getElementById('scanning-overlay');
         const manualForm = document.getElementById('manual-form');
@@ -947,17 +996,32 @@
             try {
                 const codeReader = new ZXing.BrowserMultiFormatReader();
                 
+                // Configure for multiple barcode formats including serial codes
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    ZXing.BarcodeFormat.QR_CODE,
+                    ZXing.BarcodeFormat.CODE_128,
+                    ZXing.BarcodeFormat.CODE_39,
+                    ZXing.BarcodeFormat.EAN_13,
+                    ZXing.BarcodeFormat.EAN_8,
+                    ZXing.BarcodeFormat.UPC_A,
+                    ZXing.BarcodeFormat.UPC_E,
+                    ZXing.BarcodeFormat.CODABAR,
+                    ZXing.BarcodeFormat.ITF
+                ]);
+                
                 // Start scanning from the video element
                 codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
                     if (result) {
                         const scannedCode = result.getText();
-                        console.log('Barcode detected:', scannedCode);
+                        console.log('Code detected:', scannedCode);
                         addItem(`Product ${nextId}`, scannedCode, true);
                         
-                        // Pause scanning briefly to prevent duplicate scans
+                        // Pause scanning to prevent duplicate scans
+                        isScanning = false;
                         setTimeout(() => {
-                            // Resume scanning after 2 seconds
-                        }, 2000);
+                            isScanning = true;
+                        }, 5000); // 5 second delay between scans
                     }
                     // Don't log errors for normal "no barcode found" cases
                     if (error && !error.message.includes('No MultiFormat Readers')) {
@@ -965,43 +1029,12 @@
                     }
                 });
                 
-                console.log('Barcode scanning started');
+                console.log('Barcode and serial code scanning started');
             } catch (error) {
                 console.error('Failed to start barcode scanning:', error);
             }
         }
 
-        // Test camera and barcode scanning availability
-        function testLibrary() {
-            const cameraSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-            const barcodeSupported = typeof ZXing !== 'undefined';
-            
-            if (cameraSupported && barcodeSupported) {
-                showToast(
-                    "Scanner Ready",
-                    "Camera and barcode scanning are both available. Ready to scan!",
-                    'success'
-                );
-            } else if (cameraSupported && !barcodeSupported) {
-                showToast(
-                    "Camera Only",
-                    "Camera works but barcode library is loading. You can still use Manual Entry.",
-                    'warning'
-                );
-            } else if (!cameraSupported) {
-                showToast(
-                    "Camera Not Supported",
-                    "Camera API not available. Please use Manual Entry or try a different browser.",
-                    'error'
-                );
-            } else {
-                showToast(
-                    "Loading Error",
-                    "Both camera and barcode library failed to load. Please refresh the page.",
-                    'error'
-                );
-            }
-        }
 
         async function stopCamera() {
             if (currentStream) {
@@ -1108,9 +1141,6 @@
         function initEventListeners() {
             // Camera toggle
             cameraToggleBtn.addEventListener('click', toggleCamera);
-            
-            // Test library button
-            testLibraryBtn.addEventListener('click', testLibrary);
 
             // Manual form
             manualForm.addEventListener('submit', (e) => {
