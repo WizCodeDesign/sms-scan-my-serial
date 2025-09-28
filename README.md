@@ -48,3 +48,5 @@ If camera is not available, use the "Manual" tab to enter serial numbers directl
 - No data is stored permanently
 - All data is cleared when page is refreshed
 - No external tracking or analytics
+
+
