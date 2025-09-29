@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- (Meta, style, and head contents unchanged) -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
@@ -12,48 +11,783 @@
     <title>SMS Scan My Serial - Professional Barcode Scanner</title>
     <meta name="description" content="Professional barcode and serial number scanner for inventory tracking with camera access and CSV export">
     <meta name="author" content="SMS Scan My Serial">
+    
     <meta property="og:title" content="SMS Scan My Serial - Professional Barcode Scanner">
     <meta property="og:description" content="Professional barcode and serial number scanner for inventory tracking with camera access and CSV export">
     <meta property="og:type" content="website">
+    
     <!-- Barcode scanning with ZXing library -->
     <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    
     <style>
-        /* (CSS unchanged) */
-        /* ... (your full CSS remains here) ... */
+        /* Design System - Professional Blue/Gray Theme */
+        :root {
+            --background: hsl(210, 20%, 98%);
+            --foreground: hsl(215, 25%, 20%);
+            --card: hsl(0, 0%, 100%);
+            --card-foreground: hsl(215, 25%, 20%);
+            --primary: hsl(214, 84%, 56%);
+            --primary-foreground: hsl(0, 0%, 100%);
+            --secondary: hsl(210, 40%, 96%);
+            --secondary-foreground: hsl(215, 25%, 20%);
+            --muted: hsl(210, 30%, 92%);
+            --muted-foreground: hsl(215, 15%, 55%);
+            --accent: hsl(213, 73%, 64%);
+            --accent-foreground: hsl(0, 0%, 100%);
+            --scanner: hsl(214, 84%, 56%);
+            --scanner-foreground: hsl(0, 0%, 100%);
+            --success: hsl(142, 76%, 36%);
+            --success-foreground: hsl(0, 0%, 100%);
+            --warning: hsl(38, 92%, 50%);
+            --warning-foreground: hsl(0, 0%, 100%);
+            --destructive: hsl(0, 84%, 60%);
+            --destructive-foreground: hsl(0, 0%, 100%);
+            --border: hsl(214, 31%, 91%);
+            --input: hsl(214, 31%, 91%);
+            --radius: 0.5rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Header */
+        .header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: var(--primary);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-foreground);
+        }
+
+        .header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .header-subtitle {
+            font-size: 0.875rem;
+            color: var(--muted-foreground);
+        }
+
+        .security-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--muted-foreground);
+        }
+
+        /* Main Layout */
+        .main {
+            padding: 1.5rem 0;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr 2fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.5rem 1.5rem 0;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            width: 100%;
+        }
+
+        .tabs-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: var(--muted);
+            border-radius: var(--radius);
+            padding: 0.25rem;
+        }
+
+        .tabs-trigger {
+            background: none;
+            border: none;
+            padding: 0.75rem;
+            border-radius: calc(var(--radius) - 0.125rem);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tabs-trigger.active {
+            background: var(--card);
+            color: var(--foreground);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .tabs-content {
+            margin-top: 1rem;
+        }
+
+        .tabs-content:not(.active) {
+            display: none;
+        }
+
+        /* Scanner */
+        .scanner-container {
+            position: relative;
+            aspect-ratio: 1;
+            background: var(--muted);
+            overflow: hidden;
+            border-radius: var(--radius);
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scanner-target {
+            border: 2px solid var(--scanner);
+            background: hsla(214, 84%, 56%, 0.1);
+            border-radius: var(--radius);
+            padding: 1rem;
+            animation: pulse 2s infinite;
+        }
+
+        .scanner-corners {
+            position: absolute;
+            inset: 0;
+            border: 4px solid transparent;
+            border-radius: var(--radius);
+            pointer-events: none;
+        }
+
+        .scanner-corners::before,
+        .scanner-corners::after {
+            content: '';
+            position: absolute;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 4px solid var(--scanner);
+        }
+
+        .scanner-corners::before {
+            top: 1rem;
+            left: 1rem;
+            border-right: none;
+            border-bottom: none;
+            border-top-left-radius: var(--radius);
+        }
+
+        .scanner-corners::after {
+            top: 1rem;
+            right: 1rem;
+            border-left: none;
+            border-bottom: none;
+            border-top-right-radius: var(--radius);
+        }
+
+        .inactive-camera {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--muted-foreground);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--primary);
+            color: var(--primary-foreground);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--foreground);
+        }
+
+        .btn-destructive {
+            background: var(--destructive);
+            color: var(--destructive-foreground);
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        /* Forms */
+        .form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .input {
+            padding: 0.75rem;
+            border: 1px solid var(--input);
+            border-radius: var(--radius);
+            background: var(--card);
+            width: 100%;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--card);
+            padding: 1rem;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-number.success {
+            color: var(--success);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--muted-foreground);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table th {
+            font-weight: 600;
+            background: var(--muted);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--muted-foreground);
+        }
+
+        .empty-icon {
+            width: 3rem;
+            height: 3rem;
+            margin: 0 auto 1rem;
+            opacity: 0.5;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border);
+            background: hsla(210, 30%, 92%, 0.3);
+            margin-top: 3rem;
+        }
+
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.5rem 0;
+        }
+
+        @media (min-width: 768px) {
+            .footer-content {
+                flex-direction: row;
+            }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: var(--success);
+            color: var(--success-foreground);
+        }
+
+        .toast.error {
+            background: var(--destructive);
+            color: var(--destructive-foreground);
+        }
+
+        .toast.warning {
+            background: var(--warning);
+            color: var(--warning-foreground);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Icons (Simple SVG replacement) */
+        .icon {
+            width: 1rem;
+            height: 1rem;
+            display: inline-block;
+        }
+
+        .icon-lg {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+
+        .icon-xl {
+            width: 4rem;
+            height: 4rem;
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 768px) {
+            body {
+                overflow-x: hidden; /* Prevent horizontal scrolling */
+            }
+            
+            .container {
+                padding: 0 0.5rem;
+                max-width: 100vw; /* Ensure container doesn't exceed viewport */
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .header-content {
+                padding: 0.75rem 0;
+                flex-wrap: wrap;
+            }
+            
+            .header-title h1 {
+                font-size: 1.1rem;
+                word-break: break-word;
+            }
+            
+            .header-subtitle {
+                font-size: 0.8rem;
+            }
+            
+            .main {
+                padding: 1rem 0;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr; /* Single column on mobile */
+                gap: 1rem;
+            }
+            
+            .btn {
+                min-height: 44px; /* iOS touch target minimum */
+                font-size: 1rem;
+                width: 100%;
+                box-sizing: border-box;
+                margin: 0;
+            }
+            
+            .scanner-container {
+                aspect-ratio: 4/3; /* Better for mobile cameras */
+                width: 100%;
+                max-width: 100%;
+            }
+            
+            .tabs-trigger {
+                padding: 1rem 0.75rem;
+                font-size: 1rem;
+                min-height: 44px;
+            }
+            
+            .input {
+                min-height: 44px;
+                font-size: 1rem;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .table {
+                min-width: 100%;
+                font-size: 0.875rem;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.5rem 0.25rem;
+                white-space: nowrap;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+            }
+            
+            .card-content {
+                padding: 0.75rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem 0.75rem 0;
+            }
+        }
+
+        /* Mobile landscape */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .scanner-container {
+                aspect-ratio: 16/9;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Header, Main, Data Table, Footer unchanged -->
-    <!-- ... (all your existing HTML up to the Manual Entry form) ... -->
-    <!-- Manual Tab Content -->
-    <div class="tabs-content" id="manual-content">
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo">
+                        <svg class="icon-lg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 4h18v2H3V4zm0 14h18v2H3v-2zm0-7h18v2H3v-2z"/>
+                        </svg>
+                    </div>
+                    <div class="header-title">
+                        <h1>SMS Scan My Serial</h1>
+                        <div class="header-subtitle">Professional Inventory Scanner</div>
+                    </div>
+                </div>
+                <div class="security-badge">
                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 10 2s-1.04.54-1.5 1.34l-.5.68-.5-.67C6.5 2.54 5 4 5 5c0 .3[...]"/>
+                        <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3z"/>
                     </svg>
-                    Manual Entry
+                    <span>Session Only</span>
                 </div>
             </div>
-            <div class="card-content">
-                <form id="manual-form" class="form">
-                    <input id="product-name" class="input" placeholder="Product Name" required>
-                    <input id="serial-number" class="input" placeholder="Serial Number (e.g., CCX9R-68N2A-69HGD-D4WHC-VAWG9)" required>
-                    <small style="color: var(--muted-foreground);margin-top:-10px;">
-                        Accepts all serials, including Microsoft keys in the format XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
-                    </small>
-                    <button type="submit" class="btn">
-                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
-                        Add Item
-                    </button>
-                </form>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <div class="grid">
+                <!-- Scanner Section -->
+                <div class="scanner-section">
+                    <!-- Tabs -->
+                    <div class="tabs">
+                        <div class="tabs-list">
+                            <button class="tabs-trigger active" data-tab="scanner">
+                                <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 4h4v4H3V4zm0 6h4v4H3v-4zm0 6h4v4H3v-4zm6-12h4v4H9V4zm0 6h4v4H9v-4zm0 6h4v4H9v-4zm6-12h4v4h-4V4zm0 6h4v4h-4v-4zm0 6h4v4h-4v-4z"/>
+                                </svg>
+                                Scanner
+                            </button>
+                            <button class="tabs-trigger" data-tab="manual">
+                                <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/>
+                                </svg>
+                                Manual
+                            </button>
+                        </div>
+
+                        <!-- Scanner Tab Content -->
+                        <div class="tabs-content active" id="scanner-content">
+                            <div class="card">
+                                <div class="card-content" style="padding: 0;">
+                                    <div class="scanner-container">
+                                        <video id="video" style="display: none; width: 100%; height: 100%; object-fit: cover;"></video>
+                                        <canvas id="canvas" style="display: none;"></canvas>
+                                        <div id="camera-inactive" class="inactive-camera">
+                                            <svg class="icon-xl" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5 11-7.5z"/>
+                                            </svg>
+                                            <p>Camera inactive</p>
+                                        </div>
+                                        <div id="scanning-overlay" class="scanner-overlay" style="display: none;">
+                                            <div class="scanner-target">
+                                                <svg class="icon-lg" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 4h4v4H3V4zm0 6h4v4H3v-4zm0 6h4v4H3v-4zm6-12h4v4H9V4zm0 6h4v4H9v-4zm0 6h4v4H9v-4zm6-12h4v4h-4V4zm0 6h4v4h-4v-4zm0 6h4v4h-4v-4z"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div class="scanner-corners"></div>
+                                    </div>
+                                    <div style="padding: 1rem;">
+                                        <button id="camera-toggle" class="btn" style="width: 100%;">
+                                            <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5 11-7.5z"/>
+                                            </svg>
+                                            Start Camera
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Tab Content -->
+                        <div class="tabs-content" id="manual-content">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="card-title">
+                                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 10 2s-1.04.54-1.5 1.34l-.5.68-.5-.67C6.5 2.54 5 4 5 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/>
+                                        </svg>
+                                        Manual Entry
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <form id="manual-form" class="form">
+                                        <input id="product-name" class="input" placeholder="Product Name" required>
+                                        <input id="serial-number" class="input" placeholder="Serial Number" required>
+                                        <button type="submit" class="btn">
+                                            <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                            </svg>
+                                            Add Item
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-items">0</div>
+                            <div class="stat-label">Total Items</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number success" id="recent-items">0</div>
+                            <div class="stat-label">Last Minute</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table Section -->
+                <div class="data-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div class="card-title">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M20 6H10v2h10v10H4V4h6V2H4c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/>
+                                    </svg>
+                                    <h3>Scanned Serials</h3>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button id="export-csv" class="btn btn-outline btn-small">
+                                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M14 2H6c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h12c1.11 0 2-.89 2-2V8l-6-6z"/>
+                                        </svg>
+                                        Export CSV
+                                    </button>
+                                    <button id="clear-all" class="btn btn-destructive btn-small">
+                                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                        </svg>
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div id="empty-state" class="empty-state">
+                                <svg class="empty-icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20 6H10v2h10v10H4V4h6V2H4c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/>
+                                </svg>
+                                <p>No items scanned yet</p>
+                                <p style="font-size: 0.875rem;">Start scanning to see your inventory data</p>
+                            </div>
+                            <div id="table-container" class="table-container" style="display: none;">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Product Name</th>
+                                            <th>Serial Number</th>
+                                            <th>Timestamp</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="table-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-    <!-- ... (rest of your HTML unchanged) ... -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--muted-foreground);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3z"/>
+                        </svg>
+                        <span>Data stored in session only - cleared on refresh</span>
+                    </div>
+                </div>
+                <div style="font-size: 0.875rem; color: var(--muted-foreground);">
+                    Professional Barcode Scanner v1.0
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <script>
         // Application State
@@ -81,9 +815,6 @@
         const exportCsvBtn = document.getElementById('export-csv');
         const clearAllBtn = document.getElementById('clear-all');
 
-        // Regex for Microsoft serial keys: 5 groups of 5 alphanumeric, separated by hyphens
-        const msSerialRegex = /^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i;
-
         // Utility Functions
         function generateId() {
             return nextId++;
@@ -97,7 +828,11 @@
                 <div style="font-size: 0.875rem; margin-top: 0.25rem;">${message}</div>
             `;
             document.body.appendChild(toast);
+            
+            // Show toast
             setTimeout(() => toast.classList.add('show'), 100);
+            
+            // Hide and remove toast
             setTimeout(() => {
                 toast.classList.remove('show');
                 setTimeout(() => document.body.removeChild(toast), 300);
@@ -106,6 +841,8 @@
 
         function updateStats() {
             totalItemsSpan.textContent = scannedItems.length;
+            
+            // Count recent items (last minute)
             const oneMinuteAgo = Date.now() - 60000;
             const recentCount = scannedItems.filter(item => 
                 new Date(item.timestamp).getTime() > oneMinuteAgo
@@ -120,6 +857,7 @@
             } else {
                 emptyState.style.display = 'none';
                 tableContainer.style.display = 'block';
+                
                 tableBody.innerHTML = scannedItems.map(item => `
                     <tr>
                         <td style="font-family: monospace; font-size: 0.875rem;">${item.id}</td>
@@ -134,12 +872,12 @@
             updateStats();
         }
 
-        // Enhanced addItem to support Microsoft serial keys format
         function addItem(productName, serialNumber, fromScan = false) {
             // Check for duplicate serial numbers
             const isDuplicate = scannedItems.some(item => 
                 item.serialNumber.toLowerCase() === serialNumber.toLowerCase()
             );
+            
             if (isDuplicate) {
                 showToast(
                     "Duplicate Serial Number",
@@ -148,21 +886,17 @@
                 );
                 return;
             }
-            // If matches Microsoft serial key format, force to uppercase
-            if (msSerialRegex.test(serialNumber)) {
-                serialNumber = serialNumber.toUpperCase();
-                if (!productName || productName.trim() === "") {
-                    productName = "Microsoft Key";
-                }
-            }
+            
             const newItem = {
                 id: generateId(),
                 productName: productName,
                 serialNumber: serialNumber,
                 timestamp: new Date().toISOString()
             };
+
             scannedItems.unshift(newItem);
             updateTable();
+            
             const action = fromScan ? 'Scanned' : 'Added';
             showToast(
                 `Item ${action}`,
@@ -175,11 +909,16 @@
         function initTabs() {
             const triggers = document.querySelectorAll('.tabs-trigger');
             const contents = document.querySelectorAll('.tabs-content');
+
             triggers.forEach(trigger => {
                 trigger.addEventListener('click', () => {
                     const tabId = trigger.getAttribute('data-tab');
+                    
+                    // Update trigger states
                     triggers.forEach(t => t.classList.remove('active'));
                     trigger.classList.add('active');
+                    
+                    // Update content states
                     contents.forEach(content => {
                         content.classList.remove('active');
                         if (content.id === `${tabId}-content`) {
@@ -190,79 +929,66 @@
             });
         }
 
-        // Handle result text from barcode or manual scan
-        function handleScannedText(scannedText) {
-            let productName = "Barcode";
-            let serialNumber = scannedText;
-            // Check for Microsoft serial key format
-            if (msSerialRegex.test(scannedText)) {
-                productName = "Microsoft Key";
-                serialNumber = scannedText.toUpperCase();
-            }
-            addItem(productName, serialNumber, true);
-        }
-
-        // Barcode scanning handler patched for Microsoft serial support
-        function startBarcodeScanning() {
-            if (!videoElement || !currentStream) return;
-            if (isScanning) return;
-            isScanning = true;
-            const codeReader = new ZXing.BrowserMultiFormatReader();
-            codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
-                if (result) {
-                    handleScannedText(result.text);
-                    codeReader.reset();
-                    setTimeout(() => {
-                        isScanning = false;
-                        startBarcodeScanning();
-                    }, 2000);
-                }
-                // else: ignore errors, keep scanning
-            });
-        }
-
-        // Camera function, unchanged except for barcode handler reference
+        // Simple Camera Function (Working Version)
         async function startCamera() {
             try {
+                // Check if mediaDevices is supported
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Camera API not supported in this browser');
                 }
+
+                // Request camera permission
                 const constraints = { 
                     video: { 
-                        facingMode: 'environment',
+                        facingMode: 'environment', // Prefer back camera on mobile
                         width: { ideal: 1280, max: 1920 },
                         height: { ideal: 720, max: 1080 }
                     } 
                 };
+
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Set up video element
                 videoElement.srcObject = currentStream;
                 videoElement.style.display = 'block';
                 cameraInactive.style.display = 'none';
                 scanningOverlay.style.display = 'flex';
+                
+                // Wait for video to be ready
                 await new Promise((resolve) => {
                     videoElement.onloadedmetadata = () => {
                         videoElement.play().then(resolve).catch(resolve);
                     };
                 });
+                
+                // Start barcode scanning if ZXing is available
                 if (typeof ZXing !== 'undefined') {
                     startBarcodeScanning();
                 }
+                
                 cameraActive = true;
                 updateCameraButton();
+                
                 const message = typeof ZXing !== 'undefined' 
-                    ? "Camera is now active. Point at a barcode or printed Microsoft serial key to scan automatically."
+                    ? "Camera is now active. Point at a barcode to scan automatically."
                     : "Camera is now active. Use Manual Entry for serial numbers.";
+                
                 showToast(
                     "Camera Started",
                     message,
                     'success'
                 );
+                
             } catch (error) {
                 console.error('Camera error:', error);
+                
+                // Reset UI state
                 cameraInactive.style.display = 'flex';
                 scanningOverlay.style.display = 'none';
+                
                 let errorMessage = "Camera access is required to use the scanner";
                 let errorTitle = "Camera Access Required";
+                
                 if (error.message.includes('not supported')) {
                     errorMessage = "Camera is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.";
                     errorTitle = "Camera Not Supported";
@@ -272,89 +998,216 @@
                 } else if (error.name === 'NotFoundError') {
                     errorMessage = "Camera not found. Please check if your camera is connected and not being used by another application.";
                     errorTitle = "Camera Not Available";
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = "Camera is already in use by another application. Please close other apps using the camera and try again.";
+                    errorTitle = "Camera In Use";
                 }
+                
                 showToast(errorTitle, errorMessage, 'error');
             }
+        }
+
+        // Barcode scanning function
+        function startBarcodeScanning() {
+            if (typeof ZXing === 'undefined') {
+                console.log('ZXing library not available');
+                return;
+            }
+
+            try {
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                // Configure for multiple barcode formats including serial codes
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    ZXing.BarcodeFormat.QR_CODE,
+                    ZXing.BarcodeFormat.CODE_128,
+                    ZXing.BarcodeFormat.CODE_39,
+                    ZXing.BarcodeFormat.EAN_13,
+                    ZXing.BarcodeFormat.EAN_8,
+                    ZXing.BarcodeFormat.UPC_A,
+                    ZXing.BarcodeFormat.UPC_E,
+                    ZXing.BarcodeFormat.CODABAR,
+                    ZXing.BarcodeFormat.ITF
+                ]);
+                
+                // Start scanning from the video element
+                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
+                    if (result) {
+                        const scannedCode = result.getText();
+                        console.log('Code detected:', scannedCode);
+                        addItem(`Product ${nextId}`, scannedCode, true);
+                        
+                        // Pause scanning to prevent duplicate scans
+                        isScanning = false;
+                        setTimeout(() => {
+                            isScanning = true;
+                        }, 5000); // 5 second delay between scans
+                    }
+                    // Don't log errors for normal "no barcode found" cases
+                    if (error && !error.message.includes('No MultiFormat Readers')) {
+                        console.log('Scanning error:', error);
+                    }
+                });
+                
+                console.log('Barcode and serial code scanning started');
+            } catch (error) {
+                console.error('Failed to start barcode scanning:', error);
+            }
+        }
+
+
+        async function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            if (scanningInterval) {
+                clearInterval(scanningInterval);
+                scanningInterval = null;
+            }
+            
+            videoElement.style.display = 'none';
+            videoElement.srcObject = null;
+            cameraInactive.style.display = 'flex';
+            scanningOverlay.style.display = 'none';
+            
+            cameraActive = false;
+            updateCameraButton();
         }
 
         function updateCameraButton() {
             if (cameraActive) {
                 cameraToggleBtn.innerHTML = `
                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5[...]"/>
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/>
                     </svg>
                     Stop Camera
                 `;
+                cameraToggleBtn.classList.add('btn-destructive');
             } else {
                 cameraToggleBtn.innerHTML = `
                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5[...]"/>
+                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5 11-7.5z"/>
                     </svg>
                     Start Camera
                 `;
+                cameraToggleBtn.classList.remove('btn-destructive');
             }
         }
 
-        // Manual form submission
-        manualForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const productName = productNameInput.value.trim();
-            const serialNumber = serialNumberInput.value.trim();
-            addItem(productName, serialNumber, false);
-            manualForm.reset();
-        });
+        function toggleCamera() {
+            if (cameraActive) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+        }
 
-        // (Other event listeners, CSV export, Clear All, etc. stay unchanged)
+        // CSV Export
+        function exportToCSV() {
+            if (scannedItems.length === 0) {
+                showToast(
+                    "No Data to Export",
+                    "Scan some items first before exporting",
+                    'error'
+                );
+                return;
+            }
 
-        // Initialize everything on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            initTabs();
+            const headers = ['ID', 'Product Name', 'Serial Number', 'Timestamp'];
+            const csvContent = [
+                headers.join(','),
+                ...scannedItems.map(item => [
+                    item.id,
+                    `"${item.productName}"`,
+                    `"${item.serialNumber}"`,
+                    new Date(item.timestamp).toLocaleString()
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `inventory_scan_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast(
+                "Export Successful",
+                `${scannedItems.length} items exported to CSV`,
+                'success'
+            );
+        }
+
+        function clearAll() {
+            if (scannedItems.length === 0) return;
+            
+            scannedItems = [];
+            nextId = 1; // Reset ID counter
             updateTable();
-            cameraToggleBtn.addEventListener('click', function() {
-                if (!cameraActive) {
-                    startCamera();
-                } else {
-                    // Stop camera
-                    if (currentStream) {
-                        currentStream.getTracks().forEach(track => track.stop());
-                        currentStream = null;
-                    }
-                    cameraActive = false;
-                    videoElement.style.display = 'none';
-                    cameraInactive.style.display = 'flex';
-                    scanningOverlay.style.display = 'none';
-                    updateCameraButton();
-                }
-            });
-            exportCsvBtn.addEventListener('click', function() {
-                if (scannedItems.length === 0) {
-                    showToast("No Items", "Nothing to export.", "warning");
+            
+            showToast(
+                "Data Cleared",
+                "All scanned items have been removed. ID counter reset to 1.",
+                'warning'
+            );
+        }
+
+        // Event Listeners
+        function initEventListeners() {
+            // Camera toggle
+            cameraToggleBtn.addEventListener('click', toggleCamera);
+
+            // Manual form
+            manualForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const productName = productNameInput.value.trim();
+                const serialNumber = serialNumberInput.value.trim();
+                
+                if (!productName || !serialNumber) {
+                    showToast(
+                        "Missing Information",
+                        "Please enter both product name and serial number",
+                        'error'
+                    );
                     return;
                 }
-                let csv = "ID,Product Name,Serial Number,Timestamp\n";
-                csv += scannedItems.map(item =>
-                    `${item.id},"${item.productName}","${item.serialNumber}","${item.timestamp}"`
-                ).join('\n');
-                const blob = new Blob([csv], { type: "text/csv" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = "scanned-serials.csv";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast("Exported", "CSV file has been downloaded.", "success");
+
+                addItem(productName, serialNumber);
+                
+                // Clear form
+                productNameInput.value = '';
+                serialNumberInput.value = '';
             });
-            clearAllBtn.addEventListener('click', function() {
-                if (confirm("Are you sure you want to clear all scanned serials? This cannot be undone.")) {
-                    scannedItems = [];
-                    nextId = 1;
-                    updateTable();
-                    showToast("Cleared", "All scanned items have been removed.", "success");
-                }
-            });
-        });
+
+            // Export and clear buttons
+            exportCsvBtn.addEventListener('click', exportToCSV);
+            clearAllBtn.addEventListener('click', clearAll);
+        }
+
+        // Initialize Application
+        function init() {
+            initTabs();
+            initEventListeners();
+            updateTable();
+            updateCameraButton();
+            
+            console.log('SMS Scan My Serial - Professional Barcode Scanner initialized');
+            console.log('Camera API available:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+        }
+
+        // Start the app when DOM is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
