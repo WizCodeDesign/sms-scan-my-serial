@@ -1009,52 +1009,59 @@
 
         // Barcode scanning function
         function startBarcodeScanning() {
-            if (typeof ZXing === 'undefined') {
-                console.log('ZXing library not available');
-                return;
-            }
-
-            try {
-                const codeReader = new ZXing.BrowserMultiFormatReader();
-                
-                // Configure for multiple barcode formats including serial codes
-                const hints = new Map();
-                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                    ZXing.BarcodeFormat.QR_CODE,
-                    ZXing.BarcodeFormat.CODE_128,
-                    ZXing.BarcodeFormat.CODE_39,
-                    ZXing.BarcodeFormat.EAN_13,
-                    ZXing.BarcodeFormat.EAN_8,
-                    ZXing.BarcodeFormat.UPC_A,
-                    ZXing.BarcodeFormat.UPC_E,
-                    ZXing.BarcodeFormat.CODABAR,
-                    ZXing.BarcodeFormat.ITF
-                ]);
-                
-                // Start scanning from the video element
-                codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
-                    if (result) {
-                        const scannedCode = result.getText();
-                        console.log('Code detected:', scannedCode);
-                        addItem(`Product ${nextId}`, scannedCode, true);
-                        
-                        // Pause scanning to prevent duplicate scans
-                        isScanning = false;
-                        setTimeout(() => {
-                            isScanning = true;
-                        }, 5000); // 5 second delay between scans
-                    }
-                    // Don't log errors for normal "no barcode found" cases
-                    if (error && !error.message.includes('No MultiFormat Readers')) {
-                        console.log('Scanning error:', error);
-                    }
-                });
-                
-                console.log('Barcode and serial code scanning started');
-            } catch (error) {
-                console.error('Failed to start barcode scanning:', error);
-            }
+        if (typeof ZXing === 'undefined') {
+            console.log('ZXing library not available');
+            return;
         }
+
+        try {
+            const codeReader = new ZXing.BrowserMultiFormatReader();
+
+            // Configure for multiple barcode formats including serial codes
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.QR_CODE,
+                ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.CODE_39,
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.EAN_8,
+                ZXing.BarcodeFormat.UPC_A,
+                ZXing.BarcodeFormat.UPC_E,
+                ZXing.BarcodeFormat.CODABAR,
+                ZXing.BarcodeFormat.ITF
+            ]);
+
+            // Start scanning from the video element
+            codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
+                if (result) {
+                    const scannedCode = result.getText();
+
+                    // Microsoft serial key regex: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
+                    const msSerialRegex = /^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/i;
+                    if (msSerialRegex.test(scannedCode)) {
+                        // Optional: Set product name for clarity
+                        addItem('Microsoft Key', scannedCode.toUpperCase(), true);
+                    } else {
+                        addItem(`Product ${nextId}`, scannedCode, true);
+                    }
+
+                    // Pause scanning to prevent duplicate scans
+                    isScanning = false;
+                    setTimeout(() => {
+                        isScanning = true;
+                    }, 5000); // 5 second delay between scans
+                }
+                // Don't log errors for normal "no barcode found" cases
+                if (error && !error.message.includes('No MultiFormat Readers')) {
+                    console.log('Scanning error:', error);
+                }
+            });
+
+            console.log('Barcode and serial code scanning started');
+        } catch (error) {
+            console.error('Failed to start barcode scanning:', error);
+        }
+    }
 
 
         async function stopCamera() {
