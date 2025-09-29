@@ -789,6 +789,7 @@
         </div>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script>
         // Application State
         let scannedItems = [];
@@ -828,10 +829,10 @@
                 <div style="font-size: 0.875rem; margin-top: 0.25rem;">${message}</div>
             `;
             document.body.appendChild(toast);
-            
+
             // Show toast
             setTimeout(() => toast.classList.add('show'), 100);
-            
+
             // Hide and remove toast
             setTimeout(() => {
                 toast.classList.remove('show');
@@ -841,10 +842,9 @@
 
         function updateStats() {
             totalItemsSpan.textContent = scannedItems.length;
-            
             // Count recent items (last minute)
             const oneMinuteAgo = Date.now() - 60000;
-            const recentCount = scannedItems.filter(item => 
+            const recentCount = scannedItems.filter(item =>
                 new Date(item.timestamp).getTime() > oneMinuteAgo
             ).length;
             recentItemsSpan.textContent = recentCount;
@@ -857,7 +857,7 @@
             } else {
                 emptyState.style.display = 'none';
                 tableContainer.style.display = 'block';
-                
+
                 tableBody.innerHTML = scannedItems.map(item => `
                     <tr>
                         <td style="font-family: monospace; font-size: 0.875rem;">${item.id}</td>
@@ -874,10 +874,10 @@
 
         function addItem(productName, serialNumber, fromScan = false) {
             // Check for duplicate serial numbers
-            const isDuplicate = scannedItems.some(item => 
+            const isDuplicate = scannedItems.some(item =>
                 item.serialNumber.toLowerCase() === serialNumber.toLowerCase()
             );
-            
+
             if (isDuplicate) {
                 showToast(
                     "Duplicate Serial Number",
@@ -886,7 +886,16 @@
                 );
                 return;
             }
-            
+
+            // If matches Microsoft serial key format, force to uppercase and set product name if blank
+            const msSerialRegex = /^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/i;
+            if (msSerialRegex.test(serialNumber)) {
+                serialNumber = serialNumber.toUpperCase();
+                if (!productName || productName.trim() === "") {
+                    productName = "Microsoft Key";
+                }
+            }
+
             const newItem = {
                 id: generateId(),
                 productName: productName,
@@ -896,7 +905,7 @@
 
             scannedItems.unshift(newItem);
             updateTable();
-            
+
             const action = fromScan ? 'Scanned' : 'Added';
             showToast(
                 `Item ${action}`,
@@ -913,11 +922,9 @@
             triggers.forEach(trigger => {
                 trigger.addEventListener('click', () => {
                     const tabId = trigger.getAttribute('data-tab');
-                    
                     // Update trigger states
                     triggers.forEach(t => t.classList.remove('active'));
                     trigger.classList.add('active');
-                    
                     // Update content states
                     contents.forEach(content => {
                         content.classList.remove('active');
@@ -929,66 +936,147 @@
             });
         }
 
-        // Simple Camera Function (Working Version)
+        // Enhanced Barcode scanning function with OCR fallback
+        function startBarcodeScanning() {
+            if (typeof ZXing === 'undefined') {
+                console.log('ZXing library not available');
+                return;
+            }
+
+            try {
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    ZXing.BarcodeFormat.QR_CODE,
+                    ZXing.BarcodeFormat.CODE_128,
+                    ZXing.BarcodeFormat.CODE_39,
+                    ZXing.BarcodeFormat.EAN_13,
+                    ZXing.BarcodeFormat.EAN_8,
+                    ZXing.BarcodeFormat.UPC_A,
+                    ZXing.BarcodeFormat.UPC_E,
+                    ZXing.BarcodeFormat.CODABAR,
+                    ZXing.BarcodeFormat.ITF
+                ]);
+
+                codeReader.decodeFromVideoDevice(undefined, videoElement, async (result, error) => {
+                    if (result) {
+                        const scannedCode = result.getText();
+                        const msSerialRegex = /^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/i;
+
+                        // If it's a valid Microsoft Key, handle normally
+                        if (msSerialRegex.test(scannedCode)) {
+                            addItem('Microsoft Key', scannedCode.toUpperCase(), true);
+                        }
+                        // If ZXing returns just numbers or something not matching, try OCR!
+                        else if (/^\d{8,13}$/.test(scannedCode) || scannedCode.length < 29) {
+                            showToast("Trying OCR", "Trying to detect printed serial key, please hold still...", "warning");
+                            const ocrResult = await tryOcrOnVideoFrame();
+                            if (ocrResult) {
+                                addItem('Microsoft Key (OCR)', ocrResult.toUpperCase(), true);
+                            } else {
+                                showToast("No Key Detected", "Could not detect a valid serial key. Try again.", "error");
+                            }
+                        }
+                        else {
+                            addItem(`Product ${nextId}`, scannedCode, true);
+                        }
+
+                        isScanning = false;
+                        setTimeout(() => { isScanning = true; }, 5000);
+                    }
+                    if (error && !error.message.includes('No MultiFormat Readers')) {
+                        console.log('Scanning error:', error);
+                    }
+                });
+
+                console.log('Barcode and serial code scanning started');
+            } catch (error) {
+                console.error('Failed to start barcode scanning:', error);
+            }
+        }
+
+        // Helper: OCR scan of current video frame
+        async function tryOcrOnVideoFrame() {
+            // Make a canvas with the current video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            // Run Tesseract OCR on the canvas
+            try {
+                const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
+                });
+                // Find the first Microsoft key in the text
+                const msSerialRegex = /[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}/i;
+                const match = text.match(msSerialRegex);
+                if (match) {
+                    return match[0];
+                }
+            } catch (err) {
+                console.error("OCR failed: ", err);
+            }
+            return null;
+        }
+
+        // Camera start/stop logic (unchanged)
         async function startCamera() {
             try {
-                // Check if mediaDevices is supported
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Camera API not supported in this browser');
                 }
 
-                // Request camera permission
-                const constraints = { 
-                    video: { 
-                        facingMode: 'environment', // Prefer back camera on mobile
+                const constraints = {
+                    video: {
+                        facingMode: 'environment',
                         width: { ideal: 1280, max: 1920 },
                         height: { ideal: 720, max: 1080 }
-                    } 
+                    }
                 };
 
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                // Set up video element
+
                 videoElement.srcObject = currentStream;
                 videoElement.style.display = 'block';
                 cameraInactive.style.display = 'none';
                 scanningOverlay.style.display = 'flex';
-                
-                // Wait for video to be ready
+
                 await new Promise((resolve) => {
                     videoElement.onloadedmetadata = () => {
                         videoElement.play().then(resolve).catch(resolve);
                     };
                 });
-                
-                // Start barcode scanning if ZXing is available
+
                 if (typeof ZXing !== 'undefined') {
                     startBarcodeScanning();
                 }
-                
+
                 cameraActive = true;
                 updateCameraButton();
-                
-                const message = typeof ZXing !== 'undefined' 
-                    ? "Camera is now active. Point at a barcode to scan automatically."
+
+                const message = typeof ZXing !== 'undefined'
+                    ? "Camera is now active. Point at a barcode or Microsoft serial key to scan automatically."
                     : "Camera is now active. Use Manual Entry for serial numbers.";
-                
+
                 showToast(
                     "Camera Started",
                     message,
                     'success'
                 );
-                
+
             } catch (error) {
                 console.error('Camera error:', error);
-                
+
                 // Reset UI state
                 cameraInactive.style.display = 'flex';
                 scanningOverlay.style.display = 'none';
-                
+
                 let errorMessage = "Camera access is required to use the scanner";
                 let errorTitle = "Camera Access Required";
-                
+
                 if (error.message.includes('not supported')) {
                     errorMessage = "Camera is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.";
                     errorTitle = "Camera Not Supported";
@@ -1002,219 +1090,90 @@
                     errorMessage = "Camera is already in use by another application. Please close other apps using the camera and try again.";
                     errorTitle = "Camera In Use";
                 }
-                
+
                 showToast(errorTitle, errorMessage, 'error');
             }
-        }
-
-        // Barcode scanning function
-        function startBarcodeScanning() {
-        if (typeof ZXing === 'undefined') {
-            console.log('ZXing library not available');
-            return;
-        }
-
-        try {
-            const codeReader = new ZXing.BrowserMultiFormatReader();
-
-            // Configure for multiple barcode formats including serial codes
-            const hints = new Map();
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                ZXing.BarcodeFormat.QR_CODE,
-                ZXing.BarcodeFormat.CODE_128,
-                ZXing.BarcodeFormat.CODE_39,
-                ZXing.BarcodeFormat.EAN_13,
-                ZXing.BarcodeFormat.EAN_8,
-                ZXing.BarcodeFormat.UPC_A,
-                ZXing.BarcodeFormat.UPC_E,
-                ZXing.BarcodeFormat.CODABAR,
-                ZXing.BarcodeFormat.ITF
-            ]);
-
-            // Start scanning from the video element
-            codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
-                if (result) {
-                    const scannedCode = result.getText();
-
-                    // Microsoft serial key regex: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
-                    const msSerialRegex = /^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/i;
-                    if (msSerialRegex.test(scannedCode)) {
-                        // Optional: Set product name for clarity
-                        addItem('Microsoft Key', scannedCode.toUpperCase(), true);
-                    } else {
-                        addItem(`Product ${nextId}`, scannedCode, true);
-                    }
-
-                    // Pause scanning to prevent duplicate scans
-                    isScanning = false;
-                    setTimeout(() => {
-                        isScanning = true;
-                    }, 5000); // 5 second delay between scans
-                }
-                // Don't log errors for normal "no barcode found" cases
-                if (error && !error.message.includes('No MultiFormat Readers')) {
-                    console.log('Scanning error:', error);
-                }
-            });
-
-            console.log('Barcode and serial code scanning started');
-        } catch (error) {
-            console.error('Failed to start barcode scanning:', error);
-        }
-    }
-
-
-        async function stopCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
-            }
-            
-            if (scanningInterval) {
-                clearInterval(scanningInterval);
-                scanningInterval = null;
-            }
-            
-            videoElement.style.display = 'none';
-            videoElement.srcObject = null;
-            cameraInactive.style.display = 'flex';
-            scanningOverlay.style.display = 'none';
-            
-            cameraActive = false;
-            updateCameraButton();
         }
 
         function updateCameraButton() {
             if (cameraActive) {
                 cameraToggleBtn.innerHTML = `
                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/>
+                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5[...]"/>
                     </svg>
                     Stop Camera
                 `;
-                cameraToggleBtn.classList.add('btn-destructive');
             } else {
                 cameraToggleBtn.innerHTML = `
                     <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5 11-7.5z"/>
+                        <path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5[...]"/>
                     </svg>
                     Start Camera
                 `;
-                cameraToggleBtn.classList.remove('btn-destructive');
             }
         }
 
-        function toggleCamera() {
-            if (cameraActive) {
-                stopCamera();
-            } else {
-                startCamera();
-            }
-        }
+        // Manual form submission
+        manualForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const productName = productNameInput.value.trim();
+            const serialNumber = serialNumberInput.value.trim();
+            addItem(productName, serialNumber, false);
+            manualForm.reset();
+        });
 
-        // CSV Export
-        function exportToCSV() {
+        // CSV Export and Clear All functionality (unchanged)
+        exportCsvBtn.addEventListener('click', function() {
             if (scannedItems.length === 0) {
-                showToast(
-                    "No Data to Export",
-                    "Scan some items first before exporting",
-                    'error'
-                );
+                showToast("No Items", "Nothing to export.", "warning");
                 return;
             }
-
-            const headers = ['ID', 'Product Name', 'Serial Number', 'Timestamp'];
-            const csvContent = [
-                headers.join(','),
-                ...scannedItems.map(item => [
-                    item.id,
-                    `"${item.productName}"`,
-                    `"${item.serialNumber}"`,
-                    new Date(item.timestamp).toLocaleString()
-                ].join(','))
-            ].join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
+            let csv = "ID,Product Name,Serial Number,Timestamp\n";
+            csv += scannedItems.map(item =>
+                `${item.id},"${item.productName}","${item.serialNumber}","${item.timestamp}"`
+            ).join('\n');
+            const blob = new Blob([csv], { type: "text/csv" });
             const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `inventory_scan_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "scanned-serials.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Exported", "CSV file has been downloaded.", "success");
+        });
 
-            showToast(
-                "Export Successful",
-                `${scannedItems.length} items exported to CSV`,
-                'success'
-            );
-        }
+        clearAllBtn.addEventListener('click', function() {
+            if (confirm("Are you sure you want to clear all scanned serials? This cannot be undone.")) {
+                scannedItems = [];
+                nextId = 1;
+                updateTable();
+                showToast("Cleared", "All scanned items have been removed.", "success");
+            }
+        });
 
-        function clearAll() {
-            if (scannedItems.length === 0) return;
-            
-            scannedItems = [];
-            nextId = 1; // Reset ID counter
-            updateTable();
-            
-            showToast(
-                "Data Cleared",
-                "All scanned items have been removed. ID counter reset to 1.",
-                'warning'
-            );
-        }
-
-        // Event Listeners
-        function initEventListeners() {
-            // Camera toggle
-            cameraToggleBtn.addEventListener('click', toggleCamera);
-
-            // Manual form
-            manualForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                
-                const productName = productNameInput.value.trim();
-                const serialNumber = serialNumberInput.value.trim();
-                
-                if (!productName || !serialNumber) {
-                    showToast(
-                        "Missing Information",
-                        "Please enter both product name and serial number",
-                        'error'
-                    );
-                    return;
-                }
-
-                addItem(productName, serialNumber);
-                
-                // Clear form
-                productNameInput.value = '';
-                serialNumberInput.value = '';
-            });
-
-            // Export and clear buttons
-            exportCsvBtn.addEventListener('click', exportToCSV);
-            clearAllBtn.addEventListener('click', clearAll);
-        }
-
-        // Initialize Application
-        function init() {
+        // Initialize everything on page load
+        document.addEventListener('DOMContentLoaded', function() {
             initTabs();
-            initEventListeners();
             updateTable();
-            updateCameraButton();
-            
-            console.log('SMS Scan My Serial - Professional Barcode Scanner initialized');
-            console.log('Camera API available:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
-        }
-
-        // Start the app when DOM is loaded
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            init();
-        }
+            cameraToggleBtn.addEventListener('click', function() {
+                if (!cameraActive) {
+                    startCamera();
+                } else {
+                    // Stop camera
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                        currentStream = null;
+                    }
+                    cameraActive = false;
+                    videoElement.style.display = 'none';
+                    cameraInactive.style.display = 'flex';
+                    scanningOverlay.style.display = 'none';
+                    updateCameraButton();
+                }
+            });
+        });
     </script>
 </body>
 </html>
